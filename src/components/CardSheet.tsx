@@ -207,17 +207,21 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
   const adjust = useAdjustCard()
   const toggleWish = useToggleWish()
   const [lang, setLang] = useState<Lang>(cardLang)
+  const [showAll, setShowAll] = useState(false)
 
   const snapshot = useMemo(() => snapshotFromDetail(card), [card])
   const items = index.items.filter((i) => i.card_id === card.id)
   const total = items.reduce((s, i) => s + i.quantity, 0)
   const wished = wishIds.has(card.id)
 
+  // Variantes connues de la base TCGdex (parfois incomplète) + celles déjà possédées
+  const listed = useMemo(() => availableVariants(card.variants), [card.variants])
   const variants = useMemo(() => {
-    const base = availableVariants(card.variants)
+    const base = [...listed]
     for (const i of items) if (!base.includes(i.variant)) base.push(i.variant)
-    return VARIANTS.filter((v) => base.includes(v.key))
-  }, [card.variants, items])
+    return VARIANTS.filter((v) => showAll || base.includes(v.key))
+  }, [listed, items, showAll])
+  const hiddenCount = VARIANTS.length - variants.length
 
   const qty = (variant: Variant) => items.filter((i) => i.variant === variant && i.lang === lang).reduce((s, i) => s + i.quantity, 0)
   const byLang = LANGS.map((l) => ({ ...l, n: items.filter((i) => i.lang === l.code).reduce((s, i) => s + i.quantity, 0) })).filter((l) => l.n > 0)
@@ -270,6 +274,7 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
                 {v.short}
               </span>
               <span className="font-semibold">{v.label}</span>
+              {!listed.includes(v.key) && <span className="text-[11px] text-subtle">non répertoriée</span>}
             </div>
             <QtyStepper
               value={qty(v.key)}
@@ -279,6 +284,15 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
           </div>
         ))}
       </div>
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-1 text-xs font-semibold text-info hover:underline"
+        >
+          + Autre variante (reverse, holo…) non listée par la base
+        </button>
+      )}
 
       <Button
         variant={wished ? 'soft' : 'secondary'}

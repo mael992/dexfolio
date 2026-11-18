@@ -546,6 +546,8 @@ function CandidateRow({ c, highlight, variantHint, onAdded }: { c: Candidate; hi
   const { openCard } = useCardSheet()
   const { catalog } = useCatalog()
   const [variant, setVariant] = useState<Variant>(variantHint && variantHint !== 'unknown' ? variantHint : 'normal')
+  // Variante touchée par l'utilisateur → prioritaire sur la base ; sinon c'est la suggestion de l'IA, vérifiée
+  const [variantChosen, setVariantChosen] = useState(false)
   const [added, setAdded] = useState(0)
   const owned = index.byCard.get(c.card.id)?.total ?? 0
   const set = catalog?.byId.get(c.setId)
@@ -584,7 +586,10 @@ function CandidateRow({ c, highlight, variantHint, onAdded }: { c: Candidate; hi
           <Segmented<Variant>
             size="sm"
             value={variant}
-            onChange={setVariant}
+            onChange={(v) => {
+              setVariant(v)
+              setVariantChosen(true)
+            }}
             ariaLabel="Variante"
             options={[
               { value: 'normal', label: 'Normale' },
@@ -597,7 +602,7 @@ function CandidateRow({ c, highlight, variantHint, onAdded }: { c: Candidate; hi
             icon={added ? Check : Plus}
             variant={added ? 'soft' : 'primary'}
             onClick={async () => {
-              const ok = await add(c.card.id, { variant, lang: c.lang, notify: true })
+              const ok = await add(c.card.id, { variant, forceVariant: variantChosen, lang: c.lang, notify: true })
               if (ok) {
                 setAdded((n) => n + 1)
                 onAdded()
@@ -652,6 +657,7 @@ function QuickEntry() {
       snapshot: snap,
       variants: m ? (m.variants ?? null) : undefined,
       variant: variant === 'auto' ? undefined : variant,
+      forceVariant: variant !== 'auto',
     })
     if (res) {
       setLog((l) => [{ key: `${match.id}-${Date.now()}`, cardId: match.id, name: match.name, localId: match.localId, image: match.image, variant: res.variant }, ...l].slice(0, 40))

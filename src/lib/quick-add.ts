@@ -21,7 +21,16 @@ export function useQuickAdd() {
   const add = useCallback(
     async (
       cardId: string,
-      opts: { snapshot?: CardSnapshot; variants?: CardVariants | null; variant?: Variant; lang?: Lang; delta?: number; notify?: boolean } = {},
+      opts: {
+        snapshot?: CardSnapshot
+        variants?: CardVariants | null
+        variant?: Variant
+        /** Variante choisie explicitement : on la garde même si la base ne la liste pas */
+        forceVariant?: boolean
+        lang?: Lang
+        delta?: number
+        notify?: boolean
+      } = {},
     ) => {
       try {
         let snapshot = opts.snapshot
@@ -33,7 +42,9 @@ export function useQuickAdd() {
         }
         // La variante demandée n'est retenue que si elle existe pour cette carte.
         const variant =
-          opts.variant && (variants == null || availableVariants(variants).includes(opts.variant)) ? opts.variant : defaultVariant(variants)
+          opts.variant && (opts.forceVariant || variants == null || availableVariants(variants).includes(opts.variant))
+            ? opts.variant
+            : defaultVariant(variants)
         adjust.mutate({ card: snapshot, lang: opts.lang ?? cardLang, variant, delta: opts.delta ?? 1 })
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(12)
         if (opts.notify) toast.success('Ajoutée à ta collection', { description: snapshot.name })
