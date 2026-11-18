@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 import { cardImageSources } from '../lib/images'
+import { useCardPhotos } from '../lib/photos'
 import { useCatalog } from '../lib/queries'
 import { useSettings } from '../lib/settings'
 import { ENERGY, energyKey, type EnergyKey } from '../lib/taxonomy'
@@ -51,9 +52,11 @@ export function CardImage({
 }) {
   const { catalog } = useCatalog()
   const { cardLang } = useSettings()
+  const { data: photos } = useCardPhotos()
+  const photo = cardId ? photos?.get(cardId) : undefined
   const sources = useMemo(
-    () => cardImageSources({ image, id: cardId, localId }, catalog, quality),
-    [image, cardId, localId, catalog, quality],
+    () => cardImageSources({ image, id: cardId, localId }, catalog, quality, photo),
+    [image, cardId, localId, catalog, quality, photo],
   )
   const key = sources.map((s) => s.url).join('|')
   const [index, setIndex] = useState(0)
@@ -90,6 +93,14 @@ export function CardImage({
             imgClassName,
           )}
         />
+      )}
+      {state === 'loaded' && current?.personal && (
+        <span
+          title="Ta photo (visible par toi seul)"
+          className="pointer-events-none absolute bottom-[4%] left-[5%] rounded bg-brand/90 px-1 text-[9px] font-bold leading-4 tracking-wide text-white shadow"
+        >
+          PHOTO
+        </span>
       )}
       {showEn && (
         <span

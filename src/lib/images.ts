@@ -59,15 +59,20 @@ export interface ImageSource {
   url: string
   /** Image anglaise de secours */
   fallback: boolean
+  /** Photo personnelle de l'utilisateur */
+  personal?: boolean
 }
 
 export function cardImageSources(
   card: { image?: string | null; id?: string | null; localId?: string | null },
   catalog: Catalog | undefined,
   quality: ImageQuality,
+  personalPhoto?: string | null,
 ): ImageSource[] {
   const out: ImageSource[] = []
   if (card.image) out.push({ url: `${card.image}/${quality}.webp`, fallback: false })
+  // Ta photo passe avant les images anglaises de secours
+  if (personalPhoto) out.push({ url: personalPhoto, fallback: false, personal: true })
   if (card.id && card.localId) {
     const setId = setIdFromCardId(card.id)
     const set = catalog?.byId.get(setId)

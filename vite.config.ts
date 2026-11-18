@@ -25,7 +25,7 @@ function cspPlugin(supabaseUrl: string): Plugin {
     "script-src 'self' 'wasm-unsafe-eval' https://cdn.jsdelivr.net blob:",
     "worker-src 'self' blob:",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://assets.tcgdex.net https://images.pokemontcg.io",
+    `img-src 'self' data: blob: https://assets.tcgdex.net https://images.pokemontcg.io ${supabaseOrigins.split(' ').filter((o) => o.startsWith('https')).join(' ')}`,
     "font-src 'self' data:",
     `connect-src 'self' https://api.tcgdex.net https://assets.tcgdex.net https://cdn.jsdelivr.net data: blob: ${supabaseOrigins}`,
     "media-src 'self' blob:",

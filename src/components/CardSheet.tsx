@@ -1,7 +1,9 @@
-import { ChevronLeft, ChevronRight, CircleExclamationPoint, ExternalLink, Heart, Layers, Paintbrush, ShieldCheck, TrendingUp } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Camera, ChevronLeft, ChevronRight, CircleExclamationPoint, ExternalLink, Heart, Layers, Paintbrush, ShieldCheck, Trash, TrendingUp } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
+import { useAuth } from '../lib/auth'
 import { useCardSheet } from '../lib/card-sheet'
+import { useCardPhotoMutations, useCardPhotos } from '../lib/photos'
 import { snapshotFromDetail } from '../lib/collection'
 import { useAdjustCard, useCollection, useToggleWish, useWishlist } from '../lib/collection-hooks'
 import { rememberPrice } from '../lib/prices'
@@ -98,6 +100,7 @@ function CardSheetContent({ cardId }: { cardId: string }) {
             />
           </HoloCard>
         </div>
+        <PhotoControls cardId={card.id} hasOfficialImage={!!card.image} />
         {list.length > 1 && pos >= 0 && (
           <div className="mt-5 flex items-center justify-center gap-3">
             <Button variant="secondary" size="icon" icon={ChevronLeft} disabled={!prev} onClick={() => prev && goTo(prev)} aria-label="Carte précédente" />
@@ -115,6 +118,51 @@ function CardSheetContent({ cardId }: { cardId: string }) {
         <PricePanel card={card} />
         <DetailsPanel card={card} />
       </div>
+    </div>
+  )
+}
+
+/** « Ajouter ma photo » : pour les cartes sans aperçu officiel en français (ou pour remplacer sa photo). */
+function PhotoControls({ cardId, hasOfficialImage }: { cardId: string; hasOfficialImage: boolean }) {
+  const { mode } = useAuth()
+  const { data: photos } = useCardPhotos()
+  const { upload, remove } = useCardPhotoMutations()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const hasPhoto = !!photos?.get(cardId)
+  if (mode !== 'supabase' || (hasOfficialImage && !hasPhoto)) return null
+  return (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      <div className="flex flex-wrap justify-center gap-2">
+        <Button
+          variant={hasPhoto ? 'secondary' : 'soft'}
+          size="sm"
+          icon={Camera}
+          loading={upload.isPending}
+          onClick={() => inputRef.current?.click()}
+        >
+          {hasPhoto ? 'Changer ma photo' : 'Ajouter ma photo'}
+        </Button>
+        {hasPhoto && (
+          <Button variant="ghost" size="sm" icon={Trash} loading={remove.isPending} onClick={() => remove.mutate(cardId)}>
+            Supprimer
+          </Button>
+        )}
+      </div>
+      <p className="max-w-[300px] text-center text-[11px] text-subtle">
+        {hasPhoto ? 'Ta photo, visible par toi seul.' : 'Pas d’aperçu officiel : photographie ta carte en remplissant le cadre. Visible par toi seul.'}
+      </p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) upload.mutate({ cardId, file })
+          e.target.value = ''
+        }}
+      />
     </div>
   )
 }
