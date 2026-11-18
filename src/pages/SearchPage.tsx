@@ -9,7 +9,7 @@ import { useCollection, useWishlist } from '../lib/collection-hooks'
 import { setQuery, useCatalog, type Catalog } from '../lib/queries'
 import { useQuickAdd } from '../lib/quick-add'
 import { useSettings } from '../lib/settings'
-import { tcgdex, type CardBrief, type Lang } from '../lib/tcgdex'
+import { englishEnergyName, localizeCardName, tcgdex, type CardBrief, type Lang } from '../lib/tcgdex'
 import { normNum, setIdFromCardId } from '../lib/utils'
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -70,7 +70,13 @@ export default function SearchPage() {
     staleTime: 10 * 60 * 1000,
     queryFn: async ({ signal }) => {
       if (numberMatch && catalog) return searchByNumber(qc, cardLang, catalog, numberMatch[1], Number(numberMatch[2].replace(/\D/g, '')))
-      return tcgdex.searchCards(cardLang, { name: debounced }, signal, 300)
+      const found = await tcgdex.searchCards(cardLang, { name: debounced }, signal, 300)
+      // Énergies de base : certaines éditions n'existent que dans la base anglaise (ex. Soleil et Lune)
+      const enEnergy = cardLang !== 'en' ? englishEnergyName(debounced) : null
+      if (!enEnergy) return found
+      const known = new Set(found.map((c) => c.id))
+      const en = await tcgdex.searchCards('en', { name: `eq:${enEnergy}` }, signal, 300).catch(() => [] as CardBrief[])
+      return [...found, ...en.filter((c) => !known.has(c.id)).map((c) => ({ ...c, name: localizeCardName(c.name, cardLang), image: undefined }))]
     },
   })
 

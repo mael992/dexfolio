@@ -7,7 +7,7 @@ import { useCardPhotoMutations, useCardPhotos } from '../lib/photos'
 import { snapshotFromDetail } from '../lib/collection'
 import { useAdjustCard, useCollection, useToggleWish, useWishlist } from '../lib/collection-hooks'
 import { rememberPrice } from '../lib/prices'
-import { useCard } from '../lib/queries'
+import { useCard, useCatalog } from '../lib/queries'
 import { useSettings } from '../lib/settings'
 import { foilLevel, rarityLabel } from '../lib/taxonomy'
 import {
@@ -168,6 +168,7 @@ function PhotoControls({ cardId, hasOfficialImage }: { cardId: string; hasOffici
 }
 
 function CardHeader({ card }: { card: CardDetail & { _lang?: Lang } }) {
+  const { catalog } = useCatalog()
   const official = card.set.cardCount?.official
   return (
     <div className="pr-10">
@@ -180,7 +181,7 @@ function CardHeader({ card }: { card: CardDetail & { _lang?: Lang } }) {
         ) : (
           <Layers className="size-4" />
         )}
-        {card.set.name}
+        {catalog?.byId.get(card.set.id)?.name ?? card.set.name}
         <span className="font-mono text-xs text-subtle">
           {card.localId}
           {official ? `/${String(official).padStart(card.localId.length, '0')}` : ''}

@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useSettings } from './settings'
 import {
   EXCLUDED_SERIES,
+  localizeCardName,
   NotFoundError,
   tcgdex,
   type CardDetail,
@@ -51,14 +52,25 @@ async function fetchRawCatalog(lang: Lang, signal?: AbortSignal): Promise<RawCat
   const details = await mapLimit(briefs, 6, (b) => tcgdex.serie(lang, b.id, signal).catch(() => null))
   const ok = details.filter((d): d is NonNullable<typeof d> => !!d && d.sets?.length > 0)
   ok.sort((a, b) => (b.releaseDate ?? '').localeCompare(a.releaseDate ?? ''))
+  // Certaines listes traduites sont incomplètes (ex. énergies de base) : on retient le total anglais s'il est plus grand.
+  const enTotals = new Map<string, number>()
+  if (lang !== 'en') {
+    const en = await mapLimit(ok, 6, (s) => tcgdex.serie('en', s.id, signal).catch(() => null))
+    for (const s of en) for (const set of s?.sets ?? []) enTotals.set(set.id, set.cardCount.total)
+  }
   const raw: RawCatalog = {
     savedAt: Date.now(),
     series: ok.map((s) => ({ id: s.id, name: s.name, logo: s.logo, releaseDate: s.releaseDate })),
     sets: ok.map((s) =>
-      [...s.sets].reverse().map((set) => ({ ...set, serieId: s.id, serieName: s.name })),
+      [...s.sets].reverse().map((set) => ({
+        ...set,
+        cardCount: { ...set.cardCount, total: Math.max(set.cardCount.total, enTotals.get(set.id) ?? 0) },
+        serieId: s.id,
+        serieName: s.name,
+      })),
     ),
   }
-  writeLocal(`dexfolio:catalog:${lang}`, raw)
+  writeLocal(`dexfolio:catalog:v2:${lang}`, raw)
   savedCatalogs.set(lang, raw)
   return raw
 }
@@ -77,7 +89,7 @@ const savedCatalogs = new Map<Lang, RawCatalog | null>()
 
 function savedCatalog(lang: Lang): RawCatalog | null {
   if (!savedCatalogs.has(lang)) {
-    const raw = readLocal<RawCatalog | null>(`dexfolio:catalog:${lang}`, null)
+    const raw = readLocal<RawCatalog | null>(`dexfolio:catalog:v2:${lang}`, null)
     savedCatalogs.set(lang, raw && Array.isArray(raw.series) && Array.isArray(raw.sets) ? raw : null)
   }
   return savedCatalogs.get(lang) ?? null
@@ -86,7 +98,7 @@ function savedCatalog(lang: Lang): RawCatalog | null {
 export function catalogQuery(lang: Lang) {
   const cached = savedCatalog(lang)
   return queryOptions({
-    queryKey: ['catalog', lang],
+    queryKey: ['catalog', 2, lang],
     queryFn: ({ signal }) => fetchRawCatalog(lang, signal),
     staleTime: CATALOG_TTL,
     gcTime: 24 * 60 * 60 * 1000,
@@ -115,10 +127,29 @@ async function withFallback<T extends object>(lang: Lang, fn: (l: Lang) => Promi
   }
 }
 
+/**
+ * Extension dans la langue choisie, complétée par les cartes que seule la base anglaise connaît
+ * (ex. les 9 énergies de base de Soleil et Lune, absentes de la liste française).
+ */
+async function fetchSetMerged(lang: Lang, setId: string, signal?: AbortSignal) {
+  const set = await withFallback<SetDetail>(lang, (l) => tcgdex.set(l, setId, signal))
+  if (set._lang === 'en') return set
+  const en = await tcgdex.set('en', setId, signal).catch(() => null)
+  if (!en) return set
+  const known = new Set(set.cards.map((c) => c.id))
+  const extra = en.cards
+    .filter((c) => !known.has(c.id))
+    // image retirée : l'app affichera l'image anglaise avec le badge « EN »
+    .map((c) => ({ ...c, name: localizeCardName(c.name, lang), image: undefined, enOnly: true }))
+  if (!extra.length) return set
+  const cards = [...set.cards, ...extra].sort((a, b) => a.localId.localeCompare(b.localId, undefined, { numeric: true }))
+  return { ...set, cards, cardCount: { ...set.cardCount, total: Math.max(set.cardCount.total, cards.length) } }
+}
+
 export function setQuery(lang: Lang, setId: string) {
   return queryOptions({
-    queryKey: ['set', lang, setId],
-    queryFn: ({ signal }) => withFallback<SetDetail>(lang, (l) => tcgdex.set(l, setId, signal)),
+    queryKey: ['set', 2, lang, setId],
+    queryFn: ({ signal }) => fetchSetMerged(lang, setId, signal),
     staleTime: 6 * 60 * 60 * 1000,
   })
 }
@@ -135,7 +166,10 @@ export function setMetaQuery(setId: string) {
 export function cardQuery(lang: Lang, cardId: string) {
   return queryOptions({
     queryKey: ['card', lang, cardId],
-    queryFn: ({ signal }) => withFallback<CardDetail>(lang, (l) => tcgdex.card(l, cardId, signal)),
+    queryFn: async ({ signal }) => {
+      const card = await withFallback<CardDetail>(lang, (l) => tcgdex.card(l, cardId, signal))
+      return card._lang === lang ? card : { ...card, name: localizeCardName(card.name, lang) }
+    },
     staleTime: 6 * 60 * 60 * 1000,
   })
 }

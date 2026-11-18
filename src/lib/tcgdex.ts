@@ -27,6 +27,38 @@ export interface CardBrief {
   localId: string
   name: string
   image?: string
+  /** Carte absente de la liste dans la langue choisie, reprise de la base anglaise */
+  enOnly?: boolean
+}
+
+const ENERGY_NAMES: Partial<Record<Lang, Record<string, string>>> = {
+  fr: {
+    Grass: 'Plante',
+    Fire: 'Feu',
+    Water: 'Eau',
+    Lightning: 'Électrique',
+    Psychic: 'Psy',
+    Fighting: 'Combat',
+    Darkness: 'Obscurité',
+    Metal: 'Métal',
+    Fairy: 'Fée',
+  },
+}
+
+/** Traduit les noms d'énergies de base venant de la base anglaise (« Fire Energy » → « Énergie Feu »). */
+export function localizeCardName(name: string, lang: Lang): string {
+  const m = name.match(/^(Grass|Fire|Water|Lightning|Psychic|Fighting|Darkness|Metal|Fairy) Energy$/)
+  const t = m && ENERGY_NAMES[lang]?.[m[1]]
+  return t ? `Énergie ${t}` : name
+}
+
+/** Inverse : « Énergie Feu » → « Fire Energy » (pour chercher dans la base anglaise). */
+export function englishEnergyName(name: string): string | null {
+  const fr = ENERGY_NAMES.fr ?? {}
+  const m = name.trim().match(/^[ée]nergie\s+(.+)$/i)
+  if (!m) return null
+  const key = Object.keys(fr).find((k) => fr[k].toLowerCase() === m[1].toLowerCase())
+  return key ? `${key} Energy` : null
 }
 
 export interface CardCount {

@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { setQuery, type Catalog } from '../lib/queries'
-import { tcgdex, type CardBrief, type Lang, type Variant } from '../lib/tcgdex'
+import { englishEnergyName, localizeCardName, tcgdex, type CardBrief, type Lang, type Variant } from '../lib/tcgdex'
 import { normNum, normalizeText, setIdFromCardId, similarity } from '../lib/utils'
 
 /** Ce que le scanner (IA ou OCR) a pu lire sur la carte. */
@@ -88,6 +88,13 @@ export async function findCandidates(qc: QueryClient, guess: ScanGuess, catalog:
         for (const q of queries) {
           results = await tcgdex.searchCards(lang, { name: q }).catch(() => [] as CardBrief[])
           if (results.length) break
+        }
+        // Énergies de base : certaines éditions n'existent que dans la base anglaise (ex. Soleil et Lune)
+        const enEnergy = lang !== 'en' ? englishEnergyName(name) : null
+        if (enEnergy) {
+          const known = new Set(results.map((c) => c.id))
+          const en = await tcgdex.searchCards('en', { name: `eq:${enEnergy}` }).catch(() => [] as CardBrief[])
+          results = [...results, ...en.filter((c) => !known.has(c.id)).map((c) => ({ ...c, name: localizeCardName(c.name, lang), image: undefined }))]
         }
         const filtered = num ? results.filter((c) => normNum(c.localId) === num) : results
         for (const c of (filtered.length ? filtered : results).slice(0, 200)) consider(c, setIdFromCardId(c.id), 0, [])
