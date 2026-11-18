@@ -11,8 +11,8 @@ import { useCard } from '../lib/queries'
 import { useSettings } from '../lib/settings'
 import { foilLevel, rarityLabel } from '../lib/taxonomy'
 import {
-  availableVariants,
   LANGS,
+  verifiedVariants,
   setSymbolUrl,
   VARIANTS,
   type CardDetail,
@@ -214,8 +214,9 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
   const total = items.reduce((s, i) => s + i.quantity, 0)
   const wished = wishIds.has(card.id)
 
-  // Variantes connues de la base TCGdex (parfois incomplète) + celles déjà possédées
-  const listed = useMemo(() => availableVariants(card.variants), [card.variants])
+  // Variantes vérifiées (ventes TCGplayer, sinon Cardmarket, sinon TCGdex) + celles déjà possédées
+  const verified = useMemo(() => verifiedVariants(card), [card])
+  const listed = verified.list
   const variants = useMemo(() => {
     const base = [...listed]
     for (const i of items) if (!base.includes(i.variant)) base.push(i.variant)
@@ -274,7 +275,7 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
                 {v.short}
               </span>
               <span className="font-semibold">{v.label}</span>
-              {!listed.includes(v.key) && <span className="text-[11px] text-subtle">non répertoriée</span>}
+              {!listed.includes(v.key) && <span className="text-[11px] text-subtle">non vérifiée</span>}
             </div>
             <QtyStepper
               value={qty(v.key)}
@@ -284,15 +285,21 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
           </div>
         ))}
       </div>
-      {hiddenCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setShowAll(true)}
-          className="mt-1 text-xs font-semibold text-info hover:underline"
-        >
-          + Autre variante (reverse, holo…) non listée par la base
-        </button>
-      )}
+      <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px]">
+        <span className="inline-flex items-center gap-1 text-subtle">
+          <ShieldCheck className={cn('size-3.5', verified.source === 'tcgdex' ? 'text-subtle' : 'text-success')} />
+          {verified.source === 'tcgplayer'
+            ? 'Variantes vérifiées avec les ventes réelles (TCGplayer)'
+            : verified.source === 'cardmarket'
+              ? 'Variantes vérifiées avec les prix Cardmarket'
+              : 'Variantes selon la base TCGdex (non vérifiables sur le marché)'}
+        </span>
+        {hiddenCount > 0 && (
+          <button type="button" onClick={() => setShowAll(true)} className="font-semibold text-info hover:underline">
+            + Autre variante
+          </button>
+        )}
+      </div>
 
       <Button
         variant={wished ? 'soft' : 'secondary'}

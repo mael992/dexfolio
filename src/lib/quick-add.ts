@@ -5,7 +5,7 @@ import { snapshotFromDetail, type CardSnapshot } from './collection'
 import { useAdjustCard, useCollection } from './collection-hooks'
 import { cardQuery } from './queries'
 import { useSettings } from './settings'
-import { availableVariants, defaultVariant, type CardVariants, type Lang, type Variant } from './tcgdex'
+import { availableVariants, pickDefault, verifiedVariants, type CardVariants, type Lang, type Variant } from './tcgdex'
 
 /**
  * Ajout / retrait rapide d'une carte.
@@ -33,18 +33,19 @@ export function useQuickAdd() {
       } = {},
     ) => {
       try {
+        // Fiche complète (mise en cache) : variantes vérifiées avec les ventes réelles du marché
         let snapshot = opts.snapshot
-        let variants = opts.variants
-        if (!snapshot || variants === undefined) {
+        let available: Variant[]
+        try {
           const detail = await qc.fetchQuery(cardQuery(cardLang, cardId))
-          snapshot = snapshotFromDetail(detail)
-          variants = detail.variants ?? null
+          snapshot = snapshot ?? snapshotFromDetail(detail)
+          available = verifiedVariants(detail).list
+        } catch (e) {
+          if (!snapshot) throw e
+          available = availableVariants(opts.variants)
         }
-        // La variante demandée n'est retenue que si elle existe pour cette carte.
-        const variant =
-          opts.variant && (opts.forceVariant || variants == null || availableVariants(variants).includes(opts.variant))
-            ? opts.variant
-            : defaultVariant(variants)
+        // La variante demandée n'est retenue que si elle existe (ou si l'utilisateur l'a choisie lui-même).
+        const variant = opts.variant && (opts.forceVariant || available.includes(opts.variant)) ? opts.variant : pickDefault(available)
         adjust.mutate({ card: snapshot, lang: opts.lang ?? cardLang, variant, delta: opts.delta ?? 1 })
         if (typeof navigator !== 'undefined' && 'vibrate' in navigator) navigator.vibrate?.(12)
         if (opts.notify) toast.success('Ajoutée à ta collection', { description: snapshot.name })

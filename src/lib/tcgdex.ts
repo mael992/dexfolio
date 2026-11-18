@@ -224,9 +224,48 @@ export function availableVariants(v?: CardVariants | null): Variant[] {
   return list.length ? list : ['normal']
 }
 
+export type VariantSource = 'tcgplayer' | 'cardmarket' | 'tcgdex'
+
+/**
+ * Variantes VÉRIFIÉES d'une carte, de la source la plus sûre à la moins sûre :
+ *  1. TCGplayer : chaque variante réellement vendue (normal / holofoil / reverse-holofoil / 1st-edition…) ;
+ *  2. Cardmarket : un prix « holo » sur une carte non holo = une reverse existe ;
+ *  3. sinon les indications de TCGdex (parfois incomplètes).
+ * La 1ʳᵉ édition et le tampon W viennent toujours de TCGdex (plus précis sur les cartes anciennes).
+ */
+export function verifiedVariants(card: Pick<CardDetail, 'variants' | 'pricing'>): { list: Variant[]; source: VariantSource } {
+  const base = card.variants ?? {}
+  const tp = card.pricing?.tcgplayer
+  const keys = tp ? Object.keys(tp).filter((k) => k !== 'unit' && k !== 'updated' && tp[k] && typeof tp[k] === 'object') : []
+  const extras: Variant[] = []
+  if (base.firstEdition || keys.some((k) => k.startsWith('1st-edition'))) extras.push('firstEdition')
+  if (base.wPromo) extras.push('wPromo')
+  const order = (list: Variant[]) => VARIANTS.map((v) => v.key).filter((k) => list.includes(k))
+
+  if (keys.length) {
+    const list: Variant[] = []
+    if (keys.some((k) => k === 'normal' || k === 'unlimited' || k === '1st-edition' || k === '1st-edition-normal')) list.push('normal')
+    if (keys.some((k) => k === 'holofoil' || k === 'unlimited-holofoil' || k === '1st-edition-holofoil')) list.push('holo')
+    if (keys.includes('reverse-holofoil')) list.push('reverse')
+    if (list.length) return { list: order([...list, ...extras]), source: 'tcgplayer' }
+  }
+
+  const listed = availableVariants(base)
+  const cm = card.pricing?.cardmarket
+  const holoPrice = [cm?.['avg-holo'], cm?.['trend-holo'], cm?.['low-holo']].some((p) => typeof p === 'number' && p > 0)
+  if (cm && holoPrice && !listed.includes('reverse') && !listed.includes('holo')) {
+    return { list: order([...listed, 'reverse', ...extras]), source: 'cardmarket' }
+  }
+  return { list: order([...listed, ...extras]), source: 'tcgdex' }
+}
+
 /** Variante « de base » : normale si elle existe, sinon holo, puis reverse… */
 export function defaultVariant(v?: CardVariants | null): Variant {
   const avail = availableVariants(v)
+  return pickDefault(avail)
+}
+
+export function pickDefault(avail: Variant[]): Variant {
   const order: Variant[] = ['normal', 'holo', 'reverse', 'firstEdition', 'wPromo']
   return order.find((k) => avail.includes(k)) ?? 'normal'
 }
