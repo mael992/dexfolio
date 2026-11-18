@@ -13,6 +13,7 @@ import {
   type SetDetail,
 } from './tcgdex'
 import { mapLimit, readLocal, writeLocal } from './utils'
+import { EXTRA_SETS, extraCardDetail, extraSetDetail, extraSetMeta, isExtraCardId, isExtraSetId } from './extra-sets'
 
 /* ------------------------------------------------------------------ */
 /* Catalogue : séries + extensions (mis en cache 12 h dans le navigateur) */
@@ -77,10 +78,17 @@ async function fetchRawCatalog(lang: Lang, signal?: AbortSignal): Promise<RawCat
 
 function buildCatalog(raw: RawCatalog): Catalog {
   let order = 0
-  const series: CatalogSerie[] = raw.series.map((s, i) => ({
-    ...s,
-    sets: (raw.sets[i] ?? []).map((set) => ({ ...set, order: order++ })),
-  }))
+  const series: CatalogSerie[] = raw.series.map((s, i) => {
+    // Extensions maison (cartes absentes des bases) : rangées en tête de leur série
+    const extras = EXTRA_SETS.filter((e) => e.serieId === s.id).map((e) => ({
+      id: e.id,
+      name: e.name,
+      cardCount: { total: e.cards.length, official: e.cards.length },
+      serieId: s.id,
+      serieName: s.name,
+    }))
+    return { ...s, sets: [...extras, ...(raw.sets[i] ?? [])].map((set) => ({ ...set, order: order++ })) }
+  })
   const sets = series.flatMap((s) => s.sets)
   return { series, sets, byId: new Map(sets.map((s) => [s.id, s])) }
 }
@@ -132,6 +140,11 @@ async function withFallback<T extends object>(lang: Lang, fn: (l: Lang) => Promi
  * (ex. les 9 énergies de base de Soleil et Lune, absentes de la liste française).
  */
 async function fetchSetMerged(lang: Lang, setId: string, signal?: AbortSignal) {
+  if (isExtraSetId(setId)) {
+    const extra = extraSetDetail(setId)
+    if (!extra) throw new NotFoundError(setId)
+    return extra
+  }
   const set = await withFallback<SetDetail>(lang, (l) => tcgdex.set(l, setId, signal))
   if (set._lang === 'en') return set
   const en = await tcgdex.set('en', setId, signal).catch(() => null)
@@ -157,7 +170,7 @@ export function setQuery(lang: Lang, setId: string) {
 export function setMetaQuery(setId: string) {
   return queryOptions({
     queryKey: ['setMeta', setId],
-    queryFn: ({ signal }) => tcgdex.setMeta(setId, signal),
+    queryFn: ({ signal }) => (isExtraSetId(setId) ? Promise.resolve(extraSetMeta(setId) ?? {}) : tcgdex.setMeta(setId, signal)),
     staleTime: 24 * 60 * 60 * 1000,
     retry: 1,
   })
@@ -167,6 +180,11 @@ export function cardQuery(lang: Lang, cardId: string) {
   return queryOptions({
     queryKey: ['card', lang, cardId],
     queryFn: async ({ signal }) => {
+      if (isExtraCardId(cardId)) {
+        const extra = extraCardDetail(cardId)
+        if (!extra) throw new NotFoundError(cardId)
+        return extra
+      }
       const card = await withFallback<CardDetail>(lang, (l) => tcgdex.card(l, cardId, signal))
       return card._lang === lang ? card : { ...card, name: localizeCardName(card.name, lang) }
     },

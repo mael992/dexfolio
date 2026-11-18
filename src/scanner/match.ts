@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { setQuery, type Catalog } from '../lib/queries'
+import { searchExtraCards } from '../lib/extra-sets'
 import { englishEnergyName, localizeCardName, tcgdex, type CardBrief, type Lang, type Variant } from '../lib/tcgdex'
 import { normNum, normalizeText, setIdFromCardId, similarity } from '../lib/utils'
 
@@ -89,6 +90,9 @@ export async function findCandidates(qc: QueryClient, guess: ScanGuess, catalog:
           results = await tcgdex.searchCards(lang, { name: q }).catch(() => [] as CardBrief[])
           if (results.length) break
         }
+        // Cartes des extensions maison (ex. énergies de base 2019)
+        const extras = searchExtraCards(name)
+        if (extras.length) results = [...extras, ...results]
         // Énergies de base : certaines éditions n'existent que dans la base anglaise (ex. Soleil et Lune)
         const enEnergy = lang !== 'en' ? englishEnergyName(name) : null
         if (enEnergy) {

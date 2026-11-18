@@ -9,6 +9,7 @@ import { useCollection, useWishlist } from '../lib/collection-hooks'
 import { setQuery, useCatalog, type Catalog } from '../lib/queries'
 import { useQuickAdd } from '../lib/quick-add'
 import { useSettings } from '../lib/settings'
+import { searchExtraCards } from '../lib/extra-sets'
 import { englishEnergyName, localizeCardName, tcgdex, type CardBrief, type Lang } from '../lib/tcgdex'
 import { normNum, setIdFromCardId } from '../lib/utils'
 import type { QueryClient } from '@tanstack/react-query'
@@ -70,7 +71,7 @@ export default function SearchPage() {
     staleTime: 10 * 60 * 1000,
     queryFn: async ({ signal }) => {
       if (numberMatch && catalog) return searchByNumber(qc, cardLang, catalog, numberMatch[1], Number(numberMatch[2].replace(/\D/g, '')))
-      const found = await tcgdex.searchCards(cardLang, { name: debounced }, signal, 300)
+      const found = [...searchExtraCards(debounced), ...(await tcgdex.searchCards(cardLang, { name: debounced }, signal, 300))]
       // Énergies de base : certaines éditions n'existent que dans la base anglaise (ex. Soleil et Lune)
       const enEnergy = cardLang !== 'en' ? englishEnergyName(debounced) : null
       if (!enEnergy) return found

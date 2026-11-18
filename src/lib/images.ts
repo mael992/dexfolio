@@ -73,7 +73,7 @@ export function cardImageSources(
   if (card.image) out.push({ url: `${card.image}/${quality}.webp`, fallback: false })
   // Ta photo passe avant les images anglaises de secours
   if (personalPhoto) out.push({ url: personalPhoto, fallback: false, personal: true })
-  if (card.id && card.localId) {
+  if (card.id && card.localId && !card.id.startsWith('dexfolio-')) {
     const setId = setIdFromCardId(card.id)
     const set = catalog?.byId.get(setId)
     if (set) out.push({ url: `https://assets.tcgdex.net/en/${set.serieId}/${setId}/${card.localId}/${quality}.webp`, fallback: true })

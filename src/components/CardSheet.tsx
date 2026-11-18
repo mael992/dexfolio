@@ -289,7 +289,9 @@ function OwnershipPanel({ card }: { card: CardDetail & { _lang?: Lang } }) {
       <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px]">
         <span className="inline-flex items-center gap-1 text-subtle">
           <ShieldCheck className={cn('size-3.5', verified.source === 'tcgdex' ? 'text-subtle' : 'text-success')} />
-          {verified.source === 'tcgplayer'
+          {card.id.startsWith('dexfolio-')
+            ? 'Carte hors base : variantes à préciser via « Autre variante »'
+            : verified.source === 'tcgplayer'
             ? 'Variantes vérifiées avec les ventes réelles (TCGplayer)'
             : verified.source === 'cardmarket'
               ? 'Variantes vérifiées avec les prix Cardmarket'
