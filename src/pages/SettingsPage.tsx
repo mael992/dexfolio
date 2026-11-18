@@ -295,12 +295,13 @@ function ScannerSection() {
     <Section icon={ScanLine} title="Scanner de cartes" description="Comment fonctionne la reconnaissance">
       <ul className="space-y-2 text-sm text-muted">
         <li>
-          <strong className="text-fg">Scanner IA (Claude)</strong> — la photo est envoyée à une fonction sécurisée
-          {isSupabaseConfigured ? ' de ton projet Supabase' : ' Supabase'} qui interroge l’API d’Anthropic. Nécessite une
-          clé API Anthropic (facturée à l’usage) configurée côté serveur, jamais dans l’app.
+          <strong className="text-fg">IA locale (Qwen)</strong> — la photo est lue par le modèle Qwen qui tourne sur ton PC
+          (Ollama, carte graphique). Aucun modèle distant : la photo transite par ta base
+          {isSupabaseConfigured ? '' : ' Supabase'} le temps de l’analyse, puis elle est effacée. Le PC doit être allumé
+          avec le scanner Dexfolio lancé.
         </li>
         <li>
-          <strong className="text-fg">Lecture locale (OCR)</strong> — gratuite, tout se passe dans ton navigateur : le
+          <strong className="text-fg">Lecture rapide (OCR)</strong> — gratuite, tout se passe dans ton navigateur : le
           numéro imprimé (ex. 025/165) et le nom sont lus puis rapprochés du catalogue.
         </li>
         <li>

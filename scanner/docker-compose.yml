@@ -1,0 +1,32 @@
+# =============================================================================
+# Dexfolio — scanner IA local (à lancer sur le PC qui fait tourner deepsearch)
+#
+#   App Dexfolio (téléphone / PC) ──► Supabase (file scan_jobs) ◄── ce scanner ──► Ollama (Qwen, GPU)
+#
+#   - Aucune porte ouverte sur le PC : le scanner se connecte vers Supabase, rien n'entre.
+#   - Le modèle reste LOCAL (ds-ollama de deepsearch, réseau interne deepsearch_backend).
+#   - Comme deepsearch : aucun journal conservé (retire « logging » pour déboguer).
+#
+# Démarrage :  copier .env.example en .env, y coller la clé secrète Supabase, puis
+#              docker compose up -d --build
+# =============================================================================
+name: dexfolio-scanner
+
+services:
+  scanner:
+    build: .
+    image: dexfolio-scanner:local
+    container_name: dexfolio-scanner
+    env_file: .env
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    logging:
+      driver: none
+    networks: [deepsearch]
+    restart: unless-stopped
+
+networks:
+  deepsearch:
+    name: deepsearch_backend
+    external: true

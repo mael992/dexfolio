@@ -47,26 +47,63 @@ create table if not exists public.wishlist_items (
 );
 
 -- ---------------------------------------------------------------------
--- Journal des scans IA (sert de limite quotidienne côté Edge Function)
+-- Scanner IA local : file d'attente traitée par le PC (Qwen via Ollama)
+--   L'app dépose la photo ici ; le « scanner » qui tourne sur le PC la lit,
+--   la fait analyser par le modèle LOCAL, écrit le résultat et efface la photo.
 -- ---------------------------------------------------------------------
-create table if not exists public.scan_events (
-  id            bigint generated always as identity primary key,
-  user_id       uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  created_at    timestamptz not null default now(),
-  model         text,
-  input_tokens  integer,
-  output_tokens integer,
-  ok            boolean not null default true
+create table if not exists public.scan_jobs (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  status      text not null default 'pending' check (status in ('pending', 'processing', 'done', 'error')),
+  image       text check (char_length(image) <= 3000000),
+  lang        text check (lang in ('fr', 'en', 'de', 'es', 'it', 'pt')),
+  result      jsonb,
+  error       text check (char_length(error) <= 500),
+  model       text check (char_length(model) <= 80),
+  duration_ms integer,
+  created_at  timestamptz not null default now(),
+  finished_at timestamptz
 );
 
-create index if not exists scan_events_user_created_idx on public.scan_events (user_id, created_at desc);
+create index if not exists scan_jobs_status_created_idx on public.scan_jobs (status, created_at);
+create index if not exists scan_jobs_user_created_idx on public.scan_jobs (user_id, created_at desc);
+
+-- Battement de cœur du scanner local (l'app affiche « Qwen en ligne / hors ligne »)
+create table if not exists public.scanner_status (
+  id        text primary key check (char_length(id) <= 40),
+  last_seen timestamptz not null default now(),
+  model     text check (char_length(model) <= 80),
+  info      jsonb
+);
+
+-- Anti-abus : 20 scans max par minute et par utilisateur
+create or replace function public.scan_jobs_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if (select count(*) from public.scan_jobs j
+       where j.user_id = new.user_id and j.created_at > now() - interval '1 minute') >= 20 then
+    raise exception 'Trop de scans en une minute, patiente un peu.' using errcode = 'P0001';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists scan_jobs_rate_limit on public.scan_jobs;
+create trigger scan_jobs_rate_limit
+  before insert on public.scan_jobs
+  for each row execute function public.scan_jobs_rate_limit();
 
 -- ---------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------
 alter table public.collection_items enable row level security;
 alter table public.wishlist_items   enable row level security;
-alter table public.scan_events      enable row level security;
+alter table public.scan_jobs        enable row level security;
+alter table public.scanner_status   enable row level security;
 
 -- Collection : CRUD limité au propriétaire
 drop policy if exists "collection_select_own" on public.collection_items;
@@ -102,22 +139,36 @@ drop policy if exists "wishlist_delete_own" on public.wishlist_items;
 create policy "wishlist_delete_own" on public.wishlist_items
   for delete to authenticated using ((select auth.uid()) = user_id);
 
--- Scans : lecture et ajout de ses propres lignes uniquement (pas de suppression → quota non contournable)
-drop policy if exists "scan_select_own" on public.scan_events;
-create policy "scan_select_own" on public.scan_events
+-- Scans : chacun dépose / lit / supprime ses propres demandes.
+-- Seul le scanner du PC (clé secrète, côté serveur) peut écrire les résultats.
+drop policy if exists "scan_jobs_select_own" on public.scan_jobs;
+create policy "scan_jobs_select_own" on public.scan_jobs
   for select to authenticated using ((select auth.uid()) = user_id);
 
-drop policy if exists "scan_insert_own" on public.scan_events;
-create policy "scan_insert_own" on public.scan_events
-  for insert to authenticated with check ((select auth.uid()) = user_id);
+drop policy if exists "scan_jobs_insert_own" on public.scan_jobs;
+create policy "scan_jobs_insert_own" on public.scan_jobs
+  for insert to authenticated
+  with check ((select auth.uid()) = user_id and status = 'pending' and result is null and error is null);
+
+drop policy if exists "scan_jobs_delete_own" on public.scan_jobs;
+create policy "scan_jobs_delete_own" on public.scan_jobs
+  for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- État du scanner : lisible par les utilisateurs connectés, écrit uniquement par le PC
+drop policy if exists "scanner_status_read" on public.scanner_status;
+create policy "scanner_status_read" on public.scanner_status
+  for select to authenticated using (true);
 
 -- Les rôles anonymes n'ont aucun accès
 revoke all on public.collection_items from anon;
 revoke all on public.wishlist_items   from anon;
-revoke all on public.scan_events      from anon;
+revoke all on public.scan_jobs        from anon;
+revoke all on public.scanner_status   from anon;
 grant select, insert, update, delete on public.collection_items to authenticated;
 grant select, insert, update, delete on public.wishlist_items   to authenticated;
-grant select, insert on public.scan_events to authenticated;
+grant select, insert, delete on public.scan_jobs to authenticated;
+grant select on public.scanner_status to authenticated;
+revoke all on function public.scan_jobs_rate_limit() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
 -- updated_at automatique

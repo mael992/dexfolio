@@ -1,8 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Camera,
   Check,
   CircleExclamationPoint,
+  Cpu,
   ImageUp,
   Keyboard,
   Lightbulb,
@@ -11,7 +12,6 @@ import {
   RotateCcw,
   ScanLine,
   ScanText,
-  Sparkles,
   SwitchCamera,
   Undo2,
 } from 'lucide-react'
@@ -29,12 +29,24 @@ import { useQuickAdd } from '../lib/quick-add'
 import { useSettings } from '../lib/settings'
 import { LANGS, type Lang, type Variant } from '../lib/tcgdex'
 import { cn, normNum, readLocal, writeLocal } from '../lib/utils'
-import { AiScanError, aiErrorMessage, guessFromAi, scanWithAi } from '../scanner/ai'
 import { captureGuide, fileToCanvas, toJpegBase64 } from '../scanner/image'
+import {
+  fetchScannerStatus,
+  guessFromReading,
+  LocalScanError,
+  localScanErrorMessage,
+  scanWithLocalAi,
+} from '../scanner/local-ai'
 import { CONFIDENT_SCORE, findCandidates, type Candidate, type ScanGuess } from '../scanner/match'
 
 type Mode = 'photo' | 'quick'
-type Engine = 'ai' | 'ocr'
+type Engine = 'local' | 'ocr'
+
+function initialEngine(): Engine {
+  const saved = readLocal<string>('dexfolio:scan-engine', '')
+  if (saved === 'local' || saved === 'ocr') return saved
+  return isSupabaseConfigured ? 'local' : 'ocr'
+}
 
 export default function ScanPage() {
   const [mode, setMode] = useState<Mode>(() => readLocal<Mode>('dexfolio:scan-mode', 'photo'))
@@ -75,7 +87,14 @@ function PhotoScanner() {
   const { cardLang } = useSettings()
   const { catalog } = useCatalog()
   const qc = useQueryClient()
-  const [engine, setEngine] = useState<Engine>(() => readLocal<Engine>('dexfolio:scan-engine', isSupabaseConfigured ? 'ai' : 'ocr'))
+  const [engine, setEngine] = useState<Engine>(initialEngine)
+  const { data: scanner } = useQuery({
+    queryKey: ['scanner-status'],
+    queryFn: fetchScannerStatus,
+    enabled: engine === 'local' && isSupabaseConfigured,
+    refetchInterval: 20_000,
+    staleTime: 10_000,
+  })
   const videoRef = useRef<HTMLVideoElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const guideRef = useRef<HTMLDivElement>(null)
@@ -148,11 +167,10 @@ function PhotoScanner() {
     setShot(canvas.toDataURL('image/jpeg', 0.7))
     try {
       let g: ScanGuess
-      if (engine === 'ai') {
-        setStatus('L’IA lit ta carte…')
-        const { reading } = await scanWithAi(toJpegBase64(canvas, 1100, 0.85))
+      if (engine === 'local') {
+        const reading = await scanWithLocalAi(toJpegBase64(canvas, 1100, 0.85), cardLang, setStatus)
         if (!reading.is_pokemon_card) throw new Error('Ce ne semble pas être une carte Pokémon. Recadre et réessaie.')
-        g = guessFromAi(reading)
+        g = guessFromReading(reading)
       } else {
         setStatus('Chargement de la lecture locale…')
         const { readCardWithOcr } = await import('../scanner/ocr')
@@ -175,7 +193,7 @@ function PhotoScanner() {
         window.location.reload()
         return
       }
-      setError(e instanceof AiScanError ? aiErrorMessage(e) : (e as Error).message)
+      setError(e instanceof LocalScanError ? localScanErrorMessage(e) : (e as Error).message)
       setCandidates([])
       setPhase('result')
     }
@@ -218,15 +236,34 @@ function PhotoScanner() {
           ariaLabel="Moteur de reconnaissance"
           className="w-full [&>button]:flex-1"
           options={[
-            { value: 'ai', label: 'IA (Claude)', icon: Sparkles },
-            { value: 'ocr', label: 'Lecture locale', icon: ScanText },
+            { value: 'local', label: 'IA locale (Qwen)', icon: Cpu },
+            { value: 'ocr', label: 'Lecture rapide', icon: ScanText },
           ]}
         />
-        <p className="px-1 text-xs text-muted">
-          {engine === 'ai'
-            ? 'Reconnaissance par l’IA via ton serveur Supabase : la plus fiable, même sur les cartes anciennes ou abîmées.'
-            : 'Gratuit et hors serveur : le texte est lu dans ton navigateur (nom + numéro). Fonctionne mieux bien éclairé.'}
-        </p>
+        {engine === 'local' ? (
+          <div className="flex items-start gap-2.5 px-1 text-xs text-muted">
+            <span
+              className={cn(
+                'mt-1 size-2 shrink-0 rounded-full',
+                !isSupabaseConfigured || !scanner ? 'bg-subtle' : scanner.online ? 'bg-success shadow-[0_0_8px_var(--success)]' : 'bg-brand',
+              )}
+              aria-hidden
+            />
+            <p>
+              {!isSupabaseConfigured
+                ? 'Nécessite la base Supabase (connexion à l’app).'
+                : !scanner
+                  ? 'Vérification de ton PC…'
+                  : scanner.online
+                    ? `Qwen est prêt sur ton PC (${scanner.model ?? 'modèle local'}). La photo transite par ta base, puis est effacée.`
+                    : `PC hors ligne : ${scanner.detail}. Utilise la lecture rapide en attendant.`}
+            </p>
+          </div>
+        ) : (
+          <p className="px-1 text-xs text-muted">
+            Gratuit et sans serveur : le texte est lu dans ton navigateur (nom + numéro). Fonctionne mieux bien éclairé.
+          </p>
+        )}
 
         <div
           ref={containerRef}
@@ -370,7 +407,9 @@ function ScanTips({ engine }: { engine: Engine }) {
     'Pose la carte à plat sur un fond uni et sombre.',
     'Évite les reflets : incline légèrement la carte ou le téléphone.',
     'Remplis le cadre : le numéro en bas de la carte doit être net.',
-    engine === 'ocr' ? 'La lecture locale se télécharge au premier scan (~5 Mo).' : 'Les cartes sous sleeve fonctionnent aussi.',
+    engine === 'ocr'
+      ? 'La lecture rapide se télécharge au premier scan (~5 Mo).'
+      : 'Qwen lit une carte en 6 à 15 s sur ton PC, même ancienne ou sous sleeve.',
   ]
   return (
     <div className="space-y-4">

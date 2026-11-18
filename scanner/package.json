@@ -1,0 +1,17 @@
+{
+  "name": "dexfolio-scanner",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scanner IA local de Dexfolio : lit les cartes avec le modèle Qwen d'Ollama, sur le PC.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node worker.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.0"
+  }
+}
