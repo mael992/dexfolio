@@ -6,7 +6,7 @@ import { CardGrid, CardGridSkeleton, CardTile } from '../components/cards'
 import { EmptyState, Input, PageHeader } from '../components/ui'
 import { useCardSheet } from '../lib/card-sheet'
 import { useCollection, useWishlist } from '../lib/collection-hooks'
-import { englishImage, setQuery, useCatalog, type Catalog } from '../lib/queries'
+import { setQuery, useCatalog, type Catalog } from '../lib/queries'
 import { useQuickAdd } from '../lib/quick-add'
 import { useSettings } from '../lib/settings'
 import { tcgdex, type CardBrief, type Lang } from '../lib/tcgdex'
@@ -141,7 +141,6 @@ export default function SearchPage() {
                 quantity={index.byCard.get(c.id)?.total ?? 0}
                 wished={wishIds.has(c.id)}
                 dimMissing={false}
-                fallbackImage={c.image ? null : englishImage(catalog, setIdFromCardId(c.id), c.localId)}
                 subtitle={catalog?.byId.get(setIdFromCardId(c.id))?.name}
                 onOpen={() => openCard(c.id, ids)}
                 onAdd={() => void add(c.id, { notify: true })}

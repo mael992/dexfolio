@@ -5,7 +5,7 @@ import { useCardSheet } from '../lib/card-sheet'
 import { snapshotFromDetail } from '../lib/collection'
 import { useAdjustCard, useCollection, useToggleWish, useWishlist } from '../lib/collection-hooks'
 import { rememberPrice } from '../lib/prices'
-import { englishImage, useCard, useCatalog } from '../lib/queries'
+import { useCard } from '../lib/queries'
 import { useSettings } from '../lib/settings'
 import { foilLevel, rarityLabel } from '../lib/taxonomy'
 import {
@@ -39,7 +39,6 @@ export default function CardSheet() {
 function CardSheetContent({ cardId }: { cardId: string }) {
   const { list, goTo } = useCardSheet()
   const { data: card, isLoading, error } = useCard(cardId)
-  const { catalog } = useCatalog()
 
   const pos = list.indexOf(cardId)
   const prev = pos > 0 ? list[pos - 1] : null
@@ -90,7 +89,8 @@ function CardSheetContent({ cardId }: { cardId: string }) {
           <HoloCard foil={foilLevel(card.rarity)}>
             <CardImage
               image={card.image}
-              fallbackImage={card.image ? null : englishImage(catalog, card.set.id, card.localId)}
+              cardId={card.id}
+              localId={card.localId}
               name={card.name}
               quality="high"
               priority

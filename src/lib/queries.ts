@@ -95,12 +95,6 @@ export function catalogQuery(lang: Lang) {
   })
 }
 
-/** Image anglaise de secours quand la carte n'a pas (encore) d'image dans la langue choisie. */
-export function englishImage(catalog: Catalog | undefined, setId: string, localId: string | null | undefined): string | null {
-  const s = catalog?.byId.get(setId)
-  return s && localId ? `https://assets.tcgdex.net/en/${s.serieId}/${setId}/${localId}` : null
-}
-
 export function useCatalog() {
   const { cardLang } = useSettings()
   const q = useQuery(catalogQuery(cardLang))

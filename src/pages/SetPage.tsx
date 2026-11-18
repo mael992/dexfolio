@@ -40,7 +40,6 @@ export default function SetPage() {
   const ownedCount = cards.filter((c) => index.byCard.has(c.id)).length
   const ratio = total ? ownedCount / total : 0
   const secretCount = Math.max(0, total - official)
-  const fallbackBase = set ? `https://assets.tcgdex.net/en/${set.serie.id}/${set.id}` : null
 
   // Célébration quand l'extension est complétée
   const prevOwned = useRef<number | null>(null)
@@ -237,7 +236,6 @@ export default function SetPage() {
                 card={c}
                 quantity={owned?.total ?? 0}
                 wished={wishIds.has(c.id)}
-                fallbackImage={!c.image && fallbackBase ? `${fallbackBase}/${c.localId}` : null}
                 onOpen={() => (quick ? quickAdd(c) : openCard(c.id, visibleIds))}
                 onAdd={() => quickAdd(c)}
                 onRemove={() => removeOne(c.id)}

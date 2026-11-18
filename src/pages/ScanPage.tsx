@@ -553,7 +553,7 @@ function CandidateRow({ c, highlight, variantHint, onAdded }: { c: Candidate; hi
   return (
     <div className={cn('surface flex gap-4 rounded-2xl p-3 transition', highlight && 'ring-2 ring-success/60')}>
       <button type="button" onClick={() => openCard(c.card.id)} className="w-[88px] shrink-0 sm:w-[104px]" aria-label={`Voir ${c.card.name}`}>
-        <CardImage image={c.card.image} name={c.card.name} className="shadow-md" />
+        <CardImage image={c.card.image} cardId={c.card.id} localId={c.card.localId} name={c.card.name} className="shadow-md" />
       </button>
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start justify-between gap-2">
@@ -731,7 +731,7 @@ function QuickEntry() {
         <div className="flex items-center gap-4 rounded-2xl bg-sunken p-3">
           <div className="w-20 shrink-0">
             {match ? (
-              <CardImage image={match.image} name={match.name} className="shadow-md" />
+              <CardImage image={match.image} cardId={match.id} localId={match.localId} name={match.name} className="shadow-md" />
             ) : (
               <div className="grid aspect-[63/88] place-items-center card-radius border-2 border-dashed border-line text-subtle">
                 {isLoading ? <Spinner /> : <ScanLine className="size-6" />}
@@ -776,7 +776,7 @@ function QuickEntry() {
             {log.map((e) => (
               <li key={e.key} className="surface flex animate-fade-up items-center gap-3 rounded-2xl p-2 pr-3">
                 <div className="w-11 shrink-0">
-                  <CardImage image={e.image} name={e.name} />
+                  <CardImage image={e.image} cardId={e.cardId} localId={e.localId} name={e.name} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-semibold">{e.name}</div>

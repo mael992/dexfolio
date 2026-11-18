@@ -16,9 +16,12 @@ import {
   Zap,
   type LucideIcon,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { cardImageSources } from '../lib/images'
+import { useCatalog } from '../lib/queries'
+import { useSettings } from '../lib/settings'
 import { ENERGY, energyKey, type EnergyKey } from '../lib/taxonomy'
-import { cardImageUrl, type ImageQuality } from '../lib/tcgdex'
+import type { ImageQuality } from '../lib/tcgdex'
 import { cn } from '../lib/utils'
 import { LogoMark } from './Logo'
 
@@ -28,40 +31,49 @@ import { LogoMark } from './Logo'
 
 export function CardImage({
   image,
+  cardId,
+  localId,
   name,
   quality = 'low',
   className,
   imgClassName,
-  fallbackImage,
   priority,
 }: {
   image?: string | null
+  /** Identifiant + numéro : permettent de trouver une image anglaise de secours */
+  cardId?: string | null
+  localId?: string | null
   name: string
   quality?: ImageQuality
   className?: string
   imgClassName?: string
-  /** Image de secours (ex. version anglaise) si l'image principale est absente. */
-  fallbackImage?: string | null
   priority?: boolean
 }) {
-  const primary = cardImageUrl(image, quality)
-  const fallback = cardImageUrl(fallbackImage, quality)
-  const initial = primary ?? fallback
-  const [src, setSrc] = useState(initial)
-  const [state, setState] = useState<'loading' | 'loaded' | 'error'>(initial ? 'loading' : 'error')
+  const { catalog } = useCatalog()
+  const { cardLang } = useSettings()
+  const sources = useMemo(
+    () => cardImageSources({ image, id: cardId, localId }, catalog, quality),
+    [image, cardId, localId, catalog, quality],
+  )
+  const key = sources.map((s) => s.url).join('|')
+  const [index, setIndex] = useState(0)
+  const [state, setState] = useState<'loading' | 'loaded' | 'error'>(sources.length ? 'loading' : 'error')
 
   useEffect(() => {
-    const next = primary ?? fallback
-    setSrc(next)
-    setState(next ? 'loading' : 'error')
-  }, [primary, fallback])
+    setIndex(0)
+    setState(sources.length ? 'loading' : 'error')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key])
+
+  const current = sources[index]
+  const showEn = state === 'loaded' && current?.fallback && cardLang !== 'en'
 
   return (
     <div className={cn('relative aspect-[63/88] w-full overflow-hidden card-radius bg-sunken', className)}>
-      {src && state !== 'error' && (
+      {current && state !== 'error' && (
         <img
-          key={src}
-          src={src}
+          key={current.url}
+          src={current.url}
           alt={name}
           loading={priority ? 'eager' : 'lazy'}
           decoding="async"
@@ -69,7 +81,7 @@ export function CardImage({
           draggable={false}
           onLoad={() => setState('loaded')}
           onError={() => {
-            if (fallback && src !== fallback) setSrc(fallback)
+            if (index < sources.length - 1) setIndex(index + 1)
             else setState('error')
           }}
           className={cn(
@@ -78,6 +90,14 @@ export function CardImage({
             imgClassName,
           )}
         />
+      )}
+      {showEn && (
+        <span
+          title="Image anglaise : la version française n'est pas encore disponible"
+          className="pointer-events-none absolute bottom-[4%] left-[5%] rounded bg-[#1d2c5e]/85 px-1 text-[9px] font-bold leading-4 tracking-wide text-white shadow"
+        >
+          EN
+        </span>
       )}
       {state === 'loading' && <div className="absolute inset-0 animate-pulse bg-gradient-to-br from-sunken to-line" />}
       {state === 'error' && <CardPlaceholder name={name} />}
@@ -184,7 +204,6 @@ export function CardTile({
   onAdd,
   onRemove,
   subtitle,
-  fallbackImage,
   dimMissing = true,
   showCaption = true,
   badge,
@@ -196,7 +215,6 @@ export function CardTile({
   onAdd?(): void
   onRemove?(): void
   subtitle?: ReactNode
-  fallbackImage?: string | null
   dimMissing?: boolean
   showCaption?: boolean
   badge?: ReactNode
@@ -213,7 +231,8 @@ export function CardTile({
         >
           <CardImage
             image={card.image}
-            fallbackImage={fallbackImage}
+            cardId={card.id}
+            localId={card.localId}
             name={card.name}
             className={cn(
               'shadow-[var(--shadow-card)] ring-1 ring-black/5 transition duration-300 dark:ring-white/5',

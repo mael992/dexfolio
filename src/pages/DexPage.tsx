@@ -5,7 +5,7 @@ import { CardGrid, CardImage, CardTile } from '../components/cards'
 import { EmptyState, PageHeader, ProgressBar, ProgressRing, Segmented, Sheet, Skeleton } from '../components/ui'
 import { useCardSheet } from '../lib/card-sheet'
 import { useCollection, type OwnedCard } from '../lib/collection-hooks'
-import { cardQuery, englishImage, useCatalog } from '../lib/queries'
+import { cardQuery, useCatalog } from '../lib/queries'
 import { useSettings } from '../lib/settings'
 import { DEX_TOTAL, dexLabel, GENERATIONS, speciesName } from '../lib/taxonomy'
 import { tcgdex } from '../lib/tcgdex'
@@ -179,7 +179,7 @@ export default function DexPage() {
                 )}
               >
                 {best ? (
-                  <CardImage image={best.image} name={best.name} className="w-full shadow-md" />
+                  <CardImage image={best.image} cardId={best.cardId} localId={best.localId} name={best.name} className="w-full shadow-md" />
                 ) : (
                   <div className="grid aspect-[63/88] w-full place-items-center card-radius bg-gradient-to-br from-sunken to-line/60">
                     <HelpCircle className="size-8 text-subtle/70 transition group-hover:scale-110 group-hover:text-brand" strokeWidth={1.5} />
@@ -250,7 +250,6 @@ function SpeciesSheet({ dex: requested, onClose }: { dex: number | null; onClose
                 key={c.id}
                 card={c}
                 quantity={index.byCard.get(c.id)?.total ?? 0}
-                fallbackImage={c.image ? null : englishImage(catalog, setIdFromCardId(c.id), c.localId)}
                 subtitle={catalog?.byId.get(setIdFromCardId(c.id))?.name}
                 onOpen={() => openCard(c.id, cards.map((x) => x.id))}
               />
