@@ -1,0 +1,7 @@
+# Configuration minimale pour la CLI Supabase (`npx supabase ...`).
+project_id = "dexfolio"
+
+[functions.scan-card]
+# Le jeton utilisateur est vérifié dans la fonction elle-même (compatible
+# avec les nouvelles clés « publishable » comme avec les anciennes clés « anon »).
+verify_jwt = false

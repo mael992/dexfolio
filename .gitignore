@@ -1,0 +1,23 @@
+# Dépendances et builds
+node_modules
+dist
+dist-ssr
+dev-dist
+*.local
+
+# Secrets : ne jamais committer de vraies clés
+.env
+.env.*
+!.env.example
+supabase/.temp
+supabase/.branches
+
+# Logs / OS / éditeurs
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea
+.claude/
