@@ -3,7 +3,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { useAuth } from '../lib/auth'
 import { useCardSheet } from '../lib/card-sheet'
-import { useCardPhotoMutations, useCardPhotos } from '../lib/photos'
+import { cropToBlob, loadPhoto, useCardPhotoMutations, useCardPhotos } from '../lib/photos'
+import { toast } from 'sonner'
+import { PhotoCropper } from './PhotoCropper'
 import { snapshotFromDetail } from '../lib/collection'
 import { useAdjustCard, useCollection, useToggleWish, useWishlist } from '../lib/collection-hooks'
 import { rememberPrice } from '../lib/prices'
@@ -128,6 +130,7 @@ function PhotoControls({ cardId, hasOfficialImage }: { cardId: string; hasOffici
   const { data: photos } = useCardPhotos()
   const { upload, remove } = useCardPhotoMutations()
   const inputRef = useRef<HTMLInputElement>(null)
+  const [photo, setPhoto] = useState<HTMLCanvasElement | null>(null)
   const hasPhoto = !!photos?.get(cardId)
   if (mode !== 'supabase' || (hasOfficialImage && !hasPhoto)) return null
   return (
@@ -149,18 +152,33 @@ function PhotoControls({ cardId, hasOfficialImage }: { cardId: string; hasOffici
         )}
       </div>
       <p className="max-w-[300px] text-center text-[11px] text-subtle">
-        {hasPhoto ? 'Ta photo, visible par toi seul.' : 'Pas d’aperçu officiel : photographie ta carte en remplissant le cadre. Visible par toi seul.'}
+        {hasPhoto ? 'Ta photo, visible par toi seul.' : 'Pas d’aperçu officiel : photographie ta carte à plat, sur un fond uni. Visible par toi seul.'}
       </p>
+      {/* Sans « capture » : sur iPhone, choix entre l'appareil photo et la photothèque */}
       <input
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         hidden
-        onChange={(e) => {
+        onChange={async (e) => {
           const file = e.target.files?.[0]
-          if (file) upload.mutate({ cardId, file })
           e.target.value = ''
+          if (!file) return
+          try {
+            setPhoto(await loadPhoto(file))
+          } catch {
+            toast.error('Impossible de lire cette photo')
+          }
+        }}
+      />
+      <PhotoCropper
+        canvas={photo}
+        saving={upload.isPending}
+        onCancel={() => setPhoto(null)}
+        onConfirm={async (box) => {
+          if (!photo) return
+          const blob = await cropToBlob(photo, box)
+          upload.mutate({ cardId, blob }, { onSuccess: () => setPhoto(null) })
         }}
       />
     </div>
