@@ -168,6 +168,9 @@ grant select, insert, update, delete on public.collection_items to authenticated
 grant select, insert, update, delete on public.wishlist_items   to authenticated;
 grant select, insert, delete on public.scan_jobs to authenticated;
 grant select on public.scanner_status to authenticated;
+-- Le scanner du PC (clé secrète = rôle service_role) traite la file et publie son état
+grant select, insert, update, delete on public.scan_jobs      to service_role;
+grant select, insert, update, delete on public.scanner_status to service_role;
 revoke all on function public.scan_jobs_rate_limit() from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------
